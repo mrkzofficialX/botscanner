@@ -1,12 +1,17 @@
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import os
+
 from scanner import scan
 
-TOKEN = os.getenv("BOT_TOKEN")  # ambil dari Render ENV
+# ===== CONFIG =====
+TOKEN = os.getenv("BOT_TOKEN")  # set di Render ENV
+PREMIUM_USERS = []  # isi user_id kalau mau
 
-PREMIUM_USERS = []  # isi nanti
-
+# ===== BOT HANDLERS =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🔍 Kirim URL untuk scan\nContoh: https://example.com\n\n"
@@ -14,7 +19,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def scan_basic(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text
+    url = update.message.text.strip()
 
     if not url.startswith("http"):
         url = "http://" + url
@@ -39,6 +44,7 @@ async def scan_basic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"{status} {k}: {v}\n"
 
     await update.message.reply_text(msg)
+
 
 async def scan_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -83,15 +89,31 @@ async def scan_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(msg)
 
-def main():
+# ===== INIT BOT =====
+def run_bot():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("scan", scan_premium))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, scan_basic))
 
-    print("Bot jalan...")
+    print("🤖 Bot jalan...")
     app.run_polling()
 
+# ===== HTTP SERVER (biar Render gak kill) =====
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"🌐 Web server jalan di port {port}")
+    server.serve_forever()
+
+# ===== MAIN =====
 if __name__ == "__main__":
-    main()
+    threading.Thread(target=run_bot).start()
+    run_web()

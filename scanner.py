@@ -32,11 +32,9 @@ def scan(url, deep=False):
         result["status"] = r.status_code
         result["server"] = r.headers.get("Server", "Unknown")
 
-        # Security headers
         for h in HEADERS_TO_CHECK:
             result["security"][h] = r.headers.get(h, "Missing")
 
-        # Deep scan (premium)
         if deep:
             for path in COMMON_PATHS:
                 try:
